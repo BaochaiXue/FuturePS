@@ -129,6 +129,7 @@ def main() -> None:
                     str(data_root),
                     "--output_dir",
                     str(per_frame_output_dir),
+                    "--no-generate_high_png",
                 ]
             )
 

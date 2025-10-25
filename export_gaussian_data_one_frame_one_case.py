@@ -15,8 +15,8 @@ Inputs (per case located in ``./data/different_types/<case>``):
 Outputs (written to ``./data/gaussian_data/<case>`` with the same naming as ``export_gaussian_data.py``):
     * ``{0,1,2}.png`` - RGB images.
     * ``mask_{0,1,2}.png`` - object masks.
-    * ``{0,1,2}_high.png`` and ``mask_*_high.png`` - upscaled RGB images and masks.
-    * ``mask_human_{0,1,2}.png`` (+ ``_high`` variants) - human/occluder masks.
+    * ``{0,1,2}_high.png`` and ``mask_*_high.png`` - upscaled RGB images and masks (optional).
+    * ``mask_human_{0,1,2}.png`` (+ ``_high`` variants when enabled) - human/occluder masks.
     * ``{0,1,2}_depth.npy`` - depth maps.
     * ``camera_meta.pkl`` - camera extrinsics and intrinsics.
     * ``observation.ply`` - fused point cloud for the selected frame.
@@ -64,6 +64,7 @@ def copy_frame_assets(
     output_dir: Path,
     frame_idx: int,
     category: str,
+    generate_high_png: bool,
 ) -> None:
     """Copy RGB/depth/mask assets for a single frame and run auxiliary processing."""
 
@@ -96,31 +97,31 @@ def copy_frame_assets(
         )
         shutil.copy2(mask_path, output_dir / f"mask_{cam_idx}.png")
 
-        # Upscale RGB
-        run_python_script(
-            Path("data_process/image_upscale.py"),
-            [
-                "--img_path",
-                str(case_dir / "color" / str(cam_idx) / f"{frame_str}.png"),
-                "--output_path",
-                str(output_dir / f"{cam_idx}_high.png"),
-                "--category",
-                category,
-            ],
-        )
+        if generate_high_png:
+            # Optional branch that prepares the 4x upsampled RGB/mask assets.
+            run_python_script(
+                Path("data_process/image_upscale.py"),
+                [
+                    "--img_path",
+                    str(case_dir / "color" / str(cam_idx) / f"{frame_str}.png"),
+                    "--output_path",
+                    str(output_dir / f"{cam_idx}_high.png"),
+                    "--category",
+                    category,
+                ],
+            )
 
-        # High-res mask
-        run_python_script(
-            Path("data_process/segment_util_image.py"),
-            [
-                "--img_path",
-                str(output_dir / f"{cam_idx}_high.png"),
-                "--TEXT_PROMPT",
-                category,
-                "--output_path",
-                str(output_dir / f"mask_{cam_idx}_high.png"),
-            ],
-        )
+            run_python_script(
+                Path("data_process/segment_util_image.py"),
+                [
+                    "--img_path",
+                    str(output_dir / f"{cam_idx}_high.png"),
+                    "--TEXT_PROMPT",
+                    category,
+                    "--output_path",
+                    str(output_dir / f"mask_{cam_idx}_high.png"),
+                ],
+            )
 
         # Depth map
         shutil.copy2(
@@ -140,17 +141,18 @@ def copy_frame_assets(
                 str(output_dir / f"mask_human_{cam_idx}.png"),
             ],
         )
-        run_python_script(
-            Path("data_process/segment_util_image.py"),
-            [
-                "--img_path",
-                str(output_dir / f"{cam_idx}_high.png"),
-                "--TEXT_PROMPT",
-                "human",
-                "--output_path",
-                str(output_dir / f"mask_human_{cam_idx}_high.png"),
-            ],
-        )
+        if generate_high_png:
+            run_python_script(
+                Path("data_process/segment_util_image.py"),
+                [
+                    "--img_path",
+                    str(output_dir / f"{cam_idx}_high.png"),
+                    "--TEXT_PROMPT",
+                    "human",
+                    "--output_path",
+                    str(output_dir / f"mask_human_{cam_idx}_high.png"),
+                ],
+            )
 
 
 def save_camera_meta(case_dir: Path, output_dir: Path) -> None:
@@ -222,6 +224,7 @@ def process_case_frame(
     category: str,
     shape_prior: str,
     frame_idx: int,
+    generate_high_png: bool,
 ) -> None:
     """Export Gaussian assets for one case and frame index."""
 
@@ -234,7 +237,7 @@ def process_case_frame(
     output_dir = output_path / case_name  # Match legacy layout (no frame subdirectory).
     ensure_dir(output_dir)
 
-    copy_frame_assets(case_dir, output_dir, frame_idx, category)
+    copy_frame_assets(case_dir, output_dir, frame_idx, category, generate_high_png)
     save_camera_meta(case_dir, output_dir)
     maybe_copy_shape_prior(case_dir, output_dir, shape_prior.lower() == "true")
     save_observation_point_cloud(case_dir, output_dir, frame_idx)
@@ -301,6 +304,12 @@ def main() -> None:
         default=Path("data_config.csv"),
         help="CSV file describing case metadata (default: data_config.csv).",
     )
+    parser.add_argument(
+        "--generate_high_png",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Toggle generation of *_high.png assets (default: enabled).",
+    )
     args = parser.parse_args()
 
     case_name = args.case
@@ -316,7 +325,15 @@ def main() -> None:
     else:
         category, shape_prior = lookup_case_metadata(case_name, args.config)
 
-    process_case_frame(base_path, output_path, case_name, category, shape_prior, frame_idx)
+    process_case_frame(
+        base_path,
+        output_path,
+        case_name,
+        category,
+        shape_prior,
+        frame_idx,
+        args.generate_high_png,
+    )
 
 
 if __name__ == "__main__":
