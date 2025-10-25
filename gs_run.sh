@@ -4,7 +4,7 @@ mkdir -p "${output_dir}" "${output_video_dir}"
 
 exp_name="init=hybrid_iso=True_ldepth=0.001_lnormal=0.0_laniso_0.0_lseg=1.0"
 
-python ./gaussian_splatting/generate_interp_poses.py
+python ./gaussian_splatting/generate_interp_poses.py --root_dir ./data/gaussian_data
 
 # Iterate over every scene folder under data/gaussian_data
 for scene_path in ./data/gaussian_data/*/; do
