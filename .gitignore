@@ -212,3 +212,5 @@ cython_debug/
 !assets/Picture2.png
 
 *.err
+*.out
+logs/
