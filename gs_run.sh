@@ -1,3 +1,16 @@
+#!/bin/bash
+#
+# Inputs:
+#   - Preprocessed scene folders under ./data/gaussian_data/<scene>/ containing RGB/masks/depth,
+#     camera_meta.pkl, observation.ply, and optional shape_prior.glb.
+#   - Helper scripts: gaussian_splatting/generate_interp_poses.py, gs_train.py, gs_render.py,
+#     gaussian_splatting/img2video.py.
+#
+# Outputs:
+#   - Trained Gaussian checkpoints and renders stored in ./gaussian_output/<scene>/<exp_name>/.
+#   - Rendered evaluation frames (ours_10000/renders) within each scene’s output directory.
+#   - Preview videos exported to ./gaussian_output_video/<scene>/<exp_name>.mp4.
+
 output_dir="./gaussian_output"
 output_video_dir="./gaussian_output_video"
 mkdir -p "${output_dir}" "${output_video_dir}"

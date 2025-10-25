@@ -2,9 +2,19 @@
 """
 Python equivalent of the original `gs_run.sh`.
 
-It prepares output directories, generates interpolated poses, and
-launches training / rendering / video export for every scene found
-under `data/gaussian_data/`.
+Inputs
+------
+- Scene directories under ``data/gaussian_data/<scene>`` (or ``--data_dir``), each containing:
+    * Gaussian-ready assets (RGB/masks/depth, ``camera_meta.pkl``, ``observation.ply``).
+    * Optional ``shape_prior.glb`` used during training.
+- ``gaussian_splatting/generate_interp_poses.py`` for creating ``interp_poses.pkl`` per scene.
+- Training and rendering scripts: ``gs_train.py``, ``gs_render.py``, ``gaussian_splatting/img2video.py``.
+
+Outputs
+-------
+- Trained checkpoints and point-cloud snapshots under ``--output_dir/<scene>/<exp_name>/``.
+- Rendered evaluation frames in ``--output_dir/<scene>/<exp_name>/test/ours_10000/renders/``.
+- Preview videos in ``--video_dir/<scene>/<exp_name>.mp4`` summarising the rendered sequence.
 """
 
 from __future__ import annotations
