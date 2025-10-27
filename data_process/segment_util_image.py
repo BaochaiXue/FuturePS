@@ -1,14 +1,30 @@
-import cv2
-import torch
-import numpy as np
-import time
+"""
+Single-image segmentation helper driven by GroundingDINO + SAM2.
+
+Inputs
+------
+- ``--img_path``: path to the RGB image to segment.
+- ``--TEXT_PROMPT``: textual prompt describing the target object.
+- GroundingDINO checkpoints under ``./data_process/groundedSAM_checkpoints``.
+- SAM 2 checkpoint ``sam2.1_hiera_large.pt`` and config ``configs/sam2.1/sam2.1_hiera_l.yaml``.
+
+Outputs
+-------
+- RGBA mask image written to ``--output_path`` where foreground pixels inherit RGB from the source image and alpha is the binary mask.
+"""
+
+from argparse import ArgumentParser
 import logging
+import time
 import traceback
-from torchvision.ops import box_convert
+
+import cv2
+import numpy as np
+import torch
+from groundingdino.util.inference import load_model, load_image, predict
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
-from groundingdino.util.inference import load_model, load_image, predict
-from argparse import ArgumentParser
+from torchvision.ops import box_convert
 
 """
 Hyper parameters
@@ -21,18 +37,40 @@ parser.add_argument(
 )
 parser.add_argument("--output_path", type=str)
 parser.add_argument("--TEXT_PROMPT", type=str)
+parser.add_argument("--exclude_mask_path", type=str, default=None)
 args = parser.parse_args()
-
-img_path = args.img_path
-output_path = args.output_path
-TEXT_PROMPT = args.TEXT_PROMPT
-
+EXCLUDE_MASK_PATH: str | None = args.exclude_mask_path
+img_path: str = args.img_path
+output_path: str = args.output_path
+TEXT_PROMPT: str = args.TEXT_PROMPT
+EXCLUDE_MASK_IOU_THRESHOLD = 0.95
 MAX_RETRIES = 5
 RETRY_DELAY_SECONDS = 3.0
 logging.basicConfig(
     level=logging.INFO,
     format="[segment_util_image] %(levelname)s: %(message)s",
 )
+
+
+def compute_mask_iou(mask_a: np.ndarray, mask_b: np.ndarray) -> float:
+    """Compute IoU between two boolean masks, resizing *mask_b* if needed."""
+
+    mask_a_bool = mask_a.astype(bool)
+    print(f"[debug info]mask_a shape: {mask_a.shape}, mask_b shape: {mask_b.shape}")
+    if mask_a.shape != mask_b.shape:
+        mask_b_resized = cv2.resize(
+            mask_b.astype(np.uint8),
+            (mask_a.shape[1], mask_a.shape[0]),
+            interpolation=cv2.INTER_NEAREST,
+        )
+        mask_b_bool = mask_b_resized.astype(bool)
+    else:
+        mask_b_bool = mask_b.astype(bool)
+    intersection = np.logical_and(mask_a_bool, mask_b_bool).sum()
+    union = mask_a_bool.sum() + mask_b_bool.sum() - intersection
+    if union == 0:
+        return 0.0
+    return float(intersection) / float(union)
 
 
 def run_segmentation() -> None:
@@ -44,8 +82,8 @@ def run_segmentation() -> None:
     GROUNDING_DINO_CHECKPOINT = (
         "./data_process/groundedSAM_checkpoints/groundingdino_swint_ogc.pth"
     )
-    BOX_THRESHOLD = 0.35
-    TEXT_THRESHOLD = 0.25
+    BOX_THRESHOLD: float = 0.35
+    TEXT_THRESHOLD: float = 0.25
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
     # build SAM2 image predictor
@@ -77,17 +115,49 @@ def run_segmentation() -> None:
     # process the box prompt for SAM 2
     h, w, _ = image_source.shape
     boxes = boxes * torch.Tensor([w, h, w, h])
-    input_boxes = box_convert(boxes=boxes, in_fmt="cxcywh", out_fmt="xyxy").numpy()
+    input_boxes: np.ndarray = box_convert(
+        boxes=boxes, in_fmt="cxcywh", out_fmt="xyxy"
+    ).numpy()
 
-    conf_values = (
-        confidences.detach().cpu().numpy().tolist()
-        if hasattr(confidences, "detach")
-        else confidences
-    )
+    if isinstance(confidences, torch.Tensor):
+        conf_values: list[float] = confidences.detach().cpu().numpy().tolist()
+    else:
+        conf_values = list(confidences)
     print(
         f"[GroundingDINO Debug] boxes shape={input_boxes.shape}, confidences={conf_values}"
     )
-
+    if EXCLUDE_MASK_PATH is not None:
+        exclude_mask = cv2.imread(EXCLUDE_MASK_PATH, cv2.IMREAD_GRAYSCALE)
+        if exclude_mask is None:
+            raise FileNotFoundError(f"Failed to read exclude mask: {EXCLUDE_MASK_PATH}")
+        exclude_mask = (exclude_mask > 0).astype(np.uint8) * 255
+        filtered_boxes = []
+        for box in input_boxes:
+            # use box to get mask from sam2_predictor
+            with torch.no_grad():
+                masks, _, _ = sam2_predictor.predict(
+                    point_coords=None,
+                    point_labels=None,
+                    box=box[None, :],
+                    multimask_output=False,
+                )
+            if masks.ndim == 4:
+                masks = masks.squeeze(1)
+            mask_img: np.ndarray = (masks[0] * 255).astype(np.uint8)
+            iou = compute_mask_iou(mask_img, exclude_mask)
+            print(f"[GroundingDINO Debug] box {box} IoU with exclude mask: {iou}")
+            if iou < EXCLUDE_MASK_IOU_THRESHOLD:
+                filtered_boxes.append(box)
+        if filtered_boxes:
+            input_boxes = np.stack(filtered_boxes, axis=0).astype(np.float32)
+            print(
+                f"[GroundingDINO Debug] {len(input_boxes)} boxes remain after filtering"
+            )
+        else:
+            raise RuntimeError(
+                "All detected boxes were filtered out by the exclude mask. "
+                "Consider lowering EXCLUDE_MASK_IOU_THRESHOLD or updating the mask."
+            )
     if torch.cuda.is_available() and torch.cuda.get_device_properties(0).major >= 8:
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
@@ -101,21 +171,14 @@ def run_segmentation() -> None:
             box=input_boxes,
             multimask_output=False,
         )
-
     if masks.ndim == 4:
         masks = masks.squeeze(1)
-
-    confidences = confidences.numpy().tolist()
-    class_names = labels
-
-    OBJECTS = class_names
-
-    ID_TO_OBJECTS = {i: obj for i, obj in enumerate(OBJECTS)}
-
     print(f"Detected {len(masks)} objects")
 
-    raw_img = cv2.imread(img_path)
-    mask_img = (masks[0] * 255).astype(np.uint8)
+    raw_img: np.ndarray | None = cv2.imread(img_path)
+    if raw_img is None:
+        raise FileNotFoundError(f"Failed to read image: {img_path}")
+    mask_img: np.ndarray = (masks[0] * 255).astype(np.uint8)
 
     ref_img = np.zeros((h, w, 4), dtype=np.uint8)
     mask_bool = mask_img > 0
@@ -141,9 +204,13 @@ def main() -> None:
                     reserved_mb,
                 )
             except Exception:  # pragma: no cover - stats may fail on some devices
-                logging.debug("Unable to query torch.cuda.memory_stats()", exc_info=True)
+                logging.debug(
+                    "Unable to query torch.cuda.memory_stats()", exc_info=True
+                )
         else:
-            logging.info("Attempt %d/%d: CUDA unavailable, running on CPU", attempt, MAX_RETRIES)
+            logging.info(
+                "Attempt %d/%d: CUDA unavailable, running on CPU", attempt, MAX_RETRIES
+            )
         try:
             run_segmentation()
             return

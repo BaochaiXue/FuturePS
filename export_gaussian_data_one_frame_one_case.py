@@ -178,6 +178,8 @@ def copy_frame_assets(
                 "human",
                 "--output_path",
                 str(output_dir / f"mask_human_{cam_idx}.png"),
+                "--exclude_mask_path",
+                str(output_dir / f"mask_{cam_idx}.png"),
             ],
         )
         if generate_high_png:
@@ -190,6 +192,8 @@ def copy_frame_assets(
                     "human",
                     "--output_path",
                     str(output_dir / f"mask_human_{cam_idx}_high.png"),
+                    "--exclude_mask_path",
+                    str(output_dir / f"mask_{cam_idx}_high.png"),
                 ],
             )
 

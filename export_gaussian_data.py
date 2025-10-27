@@ -125,6 +125,8 @@ with open("data_config.csv", newline="", encoding="utf-8") as csvfile:
                     "human",
                     "--output_path",
                     str(dest_case_dir / f"mask_human_{i}.png"),
+                    "--exclude_mask_path",
+                    str(dest_case_dir / f"mask_{i}.png"),
                 ],
                 check=True,
             )
@@ -138,6 +140,8 @@ with open("data_config.csv", newline="", encoding="utf-8") as csvfile:
                     "human",
                     "--output_path",
                     str(dest_case_dir / f"mask_human_{i}_high.png"),
+                    "--exclude_mask_path",
+                    str(dest_case_dir / f"mask_{i}_high.png"),
                 ],
                 check=True,
             )
