@@ -217,3 +217,5 @@ logs/
 per_frame_gaussian_output_video
 per_frame_gaussian_data
 per_frame_gaussian_output
+tmp_gaussian_output
+tmp_gaussian_output_video

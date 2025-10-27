@@ -1,3 +1,16 @@
+"""Create interpolated camera trajectories for QQTT scenes.
+
+Inputs
+------
+- ``--root_dir`` pointing to one or more scene folders (default ``./data/gaussian_data``).
+  Each scene must contain ``camera_meta.pkl`` with the original training camera poses.
+
+Outputs
+-------
+- For every scene directory under ``root_dir`` a new ``interp_poses.pkl`` is written. It
+  stores smoothly interpolated camera poses (c2w matrices) used during evaluation/rendering.
+"""
+
 from __future__ import annotations
 
 import argparse

@@ -32,11 +32,17 @@ import json
 import pickle
 import shutil
 import subprocess
+import time
+import logging
 from pathlib import Path
 from typing import Iterable
 
 import numpy as np
 import open3d as o3d
+
+logging.basicConfig(
+    level=logging.INFO, format="[export_gaussian_frame] %(levelname)s: %(message)s"
+)
 
 
 # Root directory containing processed data per case (will be overridden by CLI).
@@ -53,10 +59,43 @@ def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def run_python_script(script: Path, args: Iterable[str]) -> None:
-    """Execute helper Python scripts with a subprocess call."""
+def run_python_script(
+    script: Path,
+    args: Iterable[str],
+    *,
+    max_retries: int = 5,
+    retry_delay: float = 2.0,
+) -> None:
+    """Execute helper Python scripts with retry logic."""
 
-    subprocess.run(["python", str(script), *args], check=True)
+    cmd = ["python", str(script), *args]
+    for attempt in range(1, max_retries + 1):
+        try:
+            subprocess.run(cmd, check=True)
+            return
+        except subprocess.CalledProcessError as exc:
+            logging.error(
+                "Helper script failed (%s) attempt %d/%d: %s",
+                script,
+                attempt,
+                max_retries,
+                exc,
+            )
+            if attempt < max_retries:
+                time.sleep(retry_delay)
+            else:
+                raise
+        except Exception as exc:  # pragma: no cover
+            logging.exception(
+                "Unexpected error running helper script %s attempt %d/%d",
+                script,
+                attempt,
+                max_retries,
+            )
+            if attempt < max_retries:
+                time.sleep(retry_delay)
+            else:
+                raise
 
 
 def copy_frame_assets(

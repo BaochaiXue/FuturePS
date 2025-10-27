@@ -34,9 +34,9 @@ python script_inference.py \
   2> >(tee logs/script_inference.err >&2)
 
 # --- Gaussian Training ---
-python dynamic_gs_run.py \
-  > >(tee logs/dynamic_gs_run.out) \
-  2> >(tee logs/dynamic_gs_run.err >&2)
+python dynamic_fast_gs.py \
+  > >(tee logs/dynamic_fast_gs.out) \
+  2> >(tee logs/dynamic_fast_gs.err >&2)
 # --- Simulation & Rendering Evaluation ---
 bash gs_run_simulate.sh \
   > >(tee logs/gs_run_simulate.out) \

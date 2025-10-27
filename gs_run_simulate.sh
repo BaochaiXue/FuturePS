@@ -1,3 +1,17 @@
+: <<'DOC'
+gs_run_simulate.sh
+
+Inputs
+------
+- Canonical Gaussian checkpoints in ``gaussian_output/<scene>/<exp_name>/``.
+- Scene assets in ``data/gaussian_data/<scene>/`` containing evaluation camera paths.
+
+Outputs
+-------
+- Dynamic render frames in ``gaussian_output_dynamic/<scene>/<view>/``.
+- Corresponding MP4 previews ``gaussian_output_dynamic/<scene>/<view>.mp4``.
+DOC
+
 output_dir="./gaussian_output_dynamic"
 mkdir -p "${output_dir}"
 

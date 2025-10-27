@@ -1,3 +1,16 @@
+"""
+Generate per-camera human-mask videos used for render overlays.
+
+Inputs
+------
+- RGB sequences and supporting data in ``data/different_types/<case>/``.
+- Depth folders and mask metadata (``mask/mask_info_*.json``) per case.
+
+Outputs
+-------
+- Foreground human masks saved to ``data/different_types_human_mask/<case>/mask/<camera>/``.
+"""
+
 import os
 import glob
 

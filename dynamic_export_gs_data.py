@@ -2,18 +2,21 @@
 """
 Export Gaussian-ready assets for every frame of every case.
 
-Inputs (read under ``./data/different_types/<case>``):
-  - ``color/<cam>/<frame>.png``: RGB frames for the three cameras.
-  - ``depth/<cam>/<frame>.npy``: depth maps aligned with the RGB frames.
-  - ``mask/**`` assets as required by ``export_gaussian_data_one_frame_one_case.py``.
-  - ``pcd/<frame>.npz`` and ``mask/processed_masks.pkl``: fused point clouds and masks.
-  - ``calibrate.pkl`` and ``metadata.json``: camera extrinsics and intrinsics metadata.
-  - (optional) ``shape/matching/final_mesh.glb``: Trellis mesh prior.
+Inputs
+------
+- Processed case folders in ``data/different_types/<case>/`` containing:
+  * ``color/<cam>/<frame>.png`` RGB images.
+  * ``depth/<cam>/<frame>.npy`` depth maps.
+  * ``mask/**`` segmentation artefacts.
+  * ``pcd/<frame>.npz`` fused point clouds and ``mask/processed_masks.pkl``.
+  * ``calibrate.pkl`` (camera extrinsics) and ``metadata.json`` (intrinsics, image size).
+  * Optional ``shape/matching/final_mesh.glb`` mesh prior.
 
-Outputs:
-  - Legacy first-frame export replicated in ``./data/gaussian_data/<case>/`` (via ``export_gaussian_data.py``).
-  - Per-frame exports written to ``./per_frame_gaussian_data/<frame>/<case>/`` mirroring the legacy layout
-    (RGB/mask/depth images, ``camera_meta.pkl``, ``observation.ply``, ``shape_prior.glb`` when available).
+Outputs
+-------
+- Legacy first-frame export copied to ``data/gaussian_data/<case>/``.
+- Per-frame Gaussian datasets in ``per_frame_gaussian_data/<frame>/<case>/`` including RGB/depth/mask imagery,
+  ``camera_meta.pkl``, ``observation.ply``, and ``shape_prior.glb`` when available.
 """
 
 from __future__ import annotations
